@@ -1,0 +1,145 @@
+---
+title: "Oncoplot"
+author: "Bryan"
+date: "2024-09-02"
+output: html_document
+---
+
+```{r, message = FALSE}
+library(maftools)
+library(readxl)
+```
+
+```{r}
+setwd("/home/molecularonco/github/nccs-exome2/script")
+annovar <- readLines("oncoplot.txt")
+var.annovar <- system.file("extdata", "oncoplot.txt", package = "maftools")
+var.annovar.maf <- annovarToMaf(annovar = "oncoplot.txt", refBuild = 'hg38', tsbCol = 'Sample_ID', table = 'refGene')
+var.annovar.maf_subset <- var.annovar.maf[, c("Hugo_Symbol", "Chromosome", "Start_Position", 
+                                              "End_Position", "Reference_Allele", 
+                                              "Tumor_Seq_Allele2", "Variant_Classification", 
+                                              "Variant_Type", "Tumor_Sample_Barcode")]
+write.table(var.annovar.maf_subset, file = "oncoplot.maf", sep = "\t", quote = FALSE, row.names = FALSE)
+laml = read.maf(maf = var.annovar.maf)
+plotmafSummary(maf = laml, rmOutlier = TRUE, addStat = 'median', dashboard = TRUE, titvRaw = FALSE)
+```
+```{r}
+# Extracting Variant Type counts
+summary = mafSummary(maf = laml)
+variant_count = summary$variant.type.summary
+print(variant_count)
+
+# Summing up the total SNPs and InDels (DEL + INS)
+total_snps <- sum(variant_count$SNP, na.rm = TRUE)
+total_indels <- sum(variant_count$DEL + variant_count$INS, na.rm = TRUE)
+
+cat("Total SNPs:", total_snps, "\n")
+cat("Total InDels (DEL + INS):", total_indels, "\n")
+```
+
+
+```{r}
+oncoplot(maf = laml, top = 25)
+```
+
+```{r}
+getGeneSummary(laml)
+```
+
+```{r}
+tmb_values = tmb(laml, captureSize = 33)
+# Display the calculated TMB values
+print(tmb_values)
+
+# Save TMB values to a CSV file
+write.csv(tmb_values, file = "TMB_results.csv", row.names = FALSE)
+```
+
+```{r}
+# Get gene summary
+gene_summary <- getGeneSummary(laml)
+
+# Total number of samples
+n_samples <- length(getSampleSummary(laml)$Tumor_Sample_Barcode)
+
+# Calculate frequency as a percentage
+gene_summary$MutFreq <- (gene_summary$MutatedSamples / n_samples) * 100
+
+# Filter genes mutated in ≥8% of samples
+top_genes <- gene_summary$Hugo_Symbol[gene_summary$MutFreq >= 7]
+
+# Print top genes
+top_genes
+
+```
+
+```{r}
+# Get mutation frequency
+gene_summary <- getGeneSummary(laml)
+n_samples <- length(getSampleSummary(laml)$Tumor_Sample_Barcode)
+gene_summary$MutFreq <- (gene_summary$MutatedSamples / n_samples) * 100
+
+# Filter genes with mutations in ≥5% of samples
+recurrent_genes <- gene_summary$Hugo_Symbol[gene_summary$MutFreq >= 3]
+```
+
+
+```{r}
+deg_df <- read_csv("/home/molecularonco/github/nccs-rna/sample/DEseq2_result.csv")
+
+filtered_deg_df <- deg_df[
+  deg_df$padj < 0.05 &
+  abs(deg_df$log2FoldChange) > 2, 
+]
+
+deg_genes <- toupper(filtered_deg_df$SYMBOL)
+```
+
+```{r}
+overlapping_genes <- intersect(recurrent_genes, deg_genes)
+
+# Output result
+cat("Number of overlapping genes:", length(overlapping_genes), "\n")
+print(overlapping_genes)
+
+```
+
+```{r}
+# Step 1: Subset DEG and mutation summary data for overlapping genes
+overlap_gene_summary <- gene_summary[gene_summary$Hugo_Symbol %in% overlapping_genes, ]
+overlap_deg_df <- filtered_deg_df[toupper(filtered_deg_df$SYMBOL) %in% overlapping_genes, ]
+
+# Step 2: Ensure uppercase gene symbols for merging consistency
+overlap_deg_df$SYMBOL <- toupper(overlap_deg_df$SYMBOL)
+
+# Step 3: Merge DEG and mutation frequency data
+merged_info <- merge(
+  overlap_deg_df[, c("SYMBOL", "log2FoldChange", "padj")],
+  overlap_gene_summary[, c("Hugo_Symbol", "MutatedSamples", "MutFreq")],
+  by.x = "SYMBOL", by.y = "Hugo_Symbol"
+)
+
+# Step 4: Extract list of mutated samples per gene (base R to avoid dplyr issues)
+mut_samples_list <- aggregate(
+  Tumor_Sample_Barcode ~ Hugo_Symbol,
+  data = laml@data[laml@data$Hugo_Symbol %in% overlapping_genes, ],
+  FUN = function(x) paste(unique(gsub("_.*", "", x)), collapse = ", ")
+)
+
+# Rename column for consistent merge
+colnames(mut_samples_list)[2] <- "MutatedSampleIDs"
+
+# Step 5: Merge sample ID list into main DEG-mutation table
+final_table <- merge(
+  merged_info,
+  mut_samples_list,
+  by.x = "SYMBOL",
+  by.y = "Hugo_Symbol",
+  all.x = TRUE
+)
+
+# Step 6: Output result
+print(final_table)
+write.csv(final_table, "overlapping_genes_summary.csv", row.names = FALSE)
+
+```

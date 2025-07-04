@@ -1,0 +1,9 @@
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - vcf2maf = 1.6.21
+  - requests = 2.31.0
+  - urllib3 = 1.26.8
+  - kiwisolver = 1.2.0

@@ -1,0 +1,113 @@
+paths:
+  samples: "samples.tsv"
+  data_dir: "rawdata"
+  results_dir: "results"
+  java_tmp_dir: "tmp"
+  input_known_vcf: "/data2/kchow/references/vcf/"
+  bwa_index: "/data/references/human_ref/hg38/index/bwa"
+  purecn: "/home/molecularonco/R/x86_64-pc-linux-gnu-library/4.3/PureCN/extdata"
+  normalize_purecn_tumor: "/home/molecularonco/github/nccs-exome2/result/020_normalized_purecn/tumor"
+  normalize_purecn_normal: "/home/molecularonco/github/nccs-exome2/result/020_normalized_purecn/normal"
+  purecn_result: "/home/molecularonco/github/nccs-exome2/result/021_purecn"
+  vcf2maf: "/home/molecularonco/github/nccs-exome2/oncokb/vcf2maf-main"
+  vep: "/home/molecularonco/github/nccs-exome2/ensembl-vep-release-111"
+  oncokb: "/home/molecularonco/github/nccs-exome2/oncokb/oncokb-annotator-master"
+
+resources:
+  reference: "/home/molecularonco/github/nccs-exome2/bundle_of_references/fa/resources_broad_hg38_v0_Homo_sapiens_assembly38.fa"
+  mem:
+    bwaindex: 101000
+    vcf2maf: 80
+  known_variants:
+      gnomad: "/home/molecularonco/github/nccs-exome2/bundle_of_references/gnomad/gnomad.afonly.vcf.filtered.vcf.gz"
+      dbsnp: "/home/molecularonco/github/nccs-exome2/bundle_of_references/vcf/dbSNP_150.vcf.gz"
+  bed: "/home/molecularonco/github/nccs-exome2/bundle_of_references/baits/twist_custom_hg38_annlee.bed"
+  bed_sorted: "/home/molecularonco/github/nccs-exome2/bundle_of_references/baits/twist_custom_hg38_annlee.sorted.bed"
+  intervals: "/home/molecularonco/github/nccs-exome2/bundle_of_references/intervals/twist_custom_hg38_annlee_interval_76.txt"
+  humandb: "/home/molecularonco/github/nccs-exome2/humandb"
+  # probes: "hg19.probes"
+  db_suffix: "my_db"
+  gencode: "/home/molecularonco/github/nccs-exome2/bundle_of_references/gencode/gencode.v20.annotation.sorted.gtf"
+  TMB:
+      dbconfig: "/home/molecularonco/github/nccs-exome2/TMB-master/config/annovar.yml"
+      varconfig: "/home/molecularonco/github/nccs-exome2/TMB-master/config/mutect2.yml"    
+  MSI: "/home/molecularonco/github/nccs-exome2/bundle_of_references/fa/resources_broad_hg38_v0_Homo_sapiens_assembly38_reference.site"
+
+threads:
+  trim-galore: 8
+  bwa_mem: 8
+  samtools_index: 8
+  fastqc_raw: 8
+  fastqc_trimmed: 8
+  bwaindex: 16
+  manta: 8
+  strelka: 8
+  lancet: 4
+  vcf2maf: 4
+  annovar: 8
+
+java_params:
+  stock:
+    gc-threads: 2
+  custom:
+    mem:
+      getpileup: 16
+      mutect: 16
+      learn_read_orientation: 4
+      calculate_contamination: 4
+      filter_mutect_calls: 8
+      annotate_mutect: 4
+      purecn: 8
+    ncpu:
+      getpileup: 1
+      mutect: 2
+      learn_read_orientation: 1
+      calculate_contamination: 1
+      filter_mutect_calls: 1
+      annotate_mutect: 1
+      purecn: 1
+
+params:
+  mutect2:
+    lod: 5.0
+    genotype_germline_sites: true
+    genotype_pon_sites: true
+  gatk:
+    LearnReadOrientationModel: ""
+    BaseRecalibrator: ""
+    GenotypeGVCFs: ""
+    VariantRecalibrator: ""
+  trim-galore: "--quality 20 --stringency 3 --e 0.1 --length 40 --phred33"
+  bwa-mem:
+    block_size: 500000000
+    arguments: "-M"
+    platform: "illumina"
+  multiqc: ""
+  picard_MarkDuplicates: "REMOVE_DUPLICATES=true ASSUME_SORTED=true CREATE_INDEX=true"
+  picard_WGSMetrics: "MINIMUM_MAPPING_QUALITY=-1 MINIMUM_BASE_QUALITY=-1 READ_LENGTH=150 COUNT_UNPAIRED=true"
+  samtools_index: ""
+  gatk_BQSR:
+    known_sites:
+      - dbsnp
+      - mills
+      - ph1_indel
+  oncokb:
+    token: "37d656c1-6c03-4b2d-b624-c5caae49b530" #valid for 6 months
+  tmb:
+    vaf: 0.05
+    maf: 0.001
+    min_depth: 20
+
+processing:
+  remove-duplicates: true
+  restrict-regions: /data2/kchow/references/bed/hg38_exome_v2.0.2_targets_sorted_validated.re_annotated.bed
+  region-padding: 100
+
+
+# filtering:
+#   vqsr: false
+#   hard:
+#     snvs:
+#       "QD < 2.0 || FS > 60.0 || MQ < 40.0 || MQRankSum < -12.5 || ReadPosRankSum < -8.0"
+#     indels:
+#       "QD < 2.0 || FS > 200.0 || ReadPosRankSum < -20.0"
